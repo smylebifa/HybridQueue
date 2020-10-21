@@ -2,95 +2,49 @@
 
 package ru.samoilov;
 
-import java.util.Collection;
-import java.util.Collections;
-import java.util.Iterator;
 import java.util.concurrent.LinkedBlockingQueue;
 
-
-// Интерфейс для асинхронной работы вставки в очередь...
-interface pushListener {
-  void push(Collection<Object> queue);
-}
+public class  HybridQueue {
 
 
-class HybridQueue {
+  private LinkedBlockingQueue<Integer> queue = new LinkedBlockingQueue<>();
 
-  // Блокирующая потокобезопасная коллекция...
-  Collection<Object> queue = Collections.synchronizedCollection(new LinkedBlockingQueue<>());
+  private int  limit = 10;
 
-  // Поле слушателя...
-  private pushListener listener;
-
-  // Получение слушателя...
-  public pushListener getListener() {
-    return listener;
+  public HybridQueue(int limit){
+    this.limit = limit;
   }
 
-  // Настройка слушателя...
-  public void setListener(pushListener listener) {
-    this.listener = listener;
-  }
-
-  // Счетчик элемента...
-  int k = 0;
-
-  // Обработка добавления элементов в очередь...
-  Runnable listOperations = () -> {
-    for(int i = k; i < k + 100; i++){
-      queue.add(i);
+  synchronized void push(Integer element) throws InterruptedException {
+    System.out.println("Trying to put: " + element );
+    while (queue.size() == limit) {
+      System.out.println("Queue is full, waiting until space is free");
+      System.out.println();
+      wait();
     }
-    k += 100;
-  };
-
-  // Добавление элементов в потоке...
-  public Runnable add(int i){
-    return listOperations;
-  }
-
-  // Ассинхронное добавление элементов...
-  public void push() throws InterruptedException {
-
-    // Создаем поток для добавления элементов с вызовом callback функции...
-    Thread thread = new Thread(new Runnable() {
-      public void run() {
-        for (int i = 200; i < 300; i++) {
-          queue.add(i);
-        }
-
-        // Проверяем, зарегистрирован ли слушатель,
-        // если да, добавляем элементы через функцию...
-        if (listener != null) {
-          // Метод обратного вызова класса...
-          listener.push(queue);
-        }
-      }
-    });
-
-    // Запускаем поток на выполнение...
-    thread.start();
-
-    // Ожидаем завершения работы потока...
-    thread.join();
-  }
-
-  // Вывод элементов очереди...
-  public void print(){
-    Iterator iterator = queue.iterator();
-
-    while(iterator.hasNext()){
-      System.out.println(iterator.next());
+    if (queue.size() ==  0) {
+      System.out.println("Queue is empty, notify");
+      notifyAll();
     }
+    queue.add(element);
+    System.out.println("Put: " + element );
+    System.out.println();
   }
 
-}
-
-// Класс с CallBack методом...
-class QueueAsync implements pushListener {
-  public void push(Collection<Object> queue)
-  {
-    for(int i = 300; i < 400; i++){
-      queue.add(i);
+  // Удаление элемента...
+  synchronized public Integer pop() throws InterruptedException {
+    System.out.println("Trying to take");
+    while (queue.size() == 0){
+      System.out.println("Queue is empty, waiting until something is put");
+      wait();
     }
+    if (queue.size() == limit){
+      System.out.println("Queue is full, notify");
+      notifyAll();
+    }
+    Integer element = this.queue.remove();
+    System.out.println("Take: " + element );
+    return element;
   }
+
 }
