@@ -76,6 +76,7 @@ class Main {
 
   static class Producer implements Runnable {
     private final HybridQueue queue;
+    private Random random = new Random();
 
     public Producer(HybridQueue queue) {
       this.queue = queue;
@@ -96,7 +97,7 @@ class Main {
     }
 
     private Integer produce() {
-      Integer i = new Random().nextInt(100);
+      Integer i = random.nextInt(100);
       System.out.println("Producer produce: " + i);
       return i;
     }
