@@ -2,44 +2,56 @@
 
 package ru.samoilov;
 
-import java.util.*;
+import java.util.Random;
 import java.util.concurrent.LinkedBlockingQueue;
 
-public class  HybridQueue {
+
+public class HybridQueue {
 
   private LinkedBlockingQueue<Integer> queue = new LinkedBlockingQueue<>();
 
   // Counts of elements by default...
-  private int  limit = 10;
+  private int limit = 10;
 
   public HybridQueue(int limit) {
     this.limit = limit;
   }
 
-  //  Add element in blocking queue...
-  synchronized void push(Integer element) throws InterruptedException {
-    System.out.println("Trying to put: " + element );
+  // Add element in blocking queue...
+  synchronized void add(Integer element) throws InterruptedException {
+    System.out.println("Trying to add: " + element);
+
+    // If queue is full, waiting until someone take element from queue...
     while (queue.size() == limit) {
       System.out.println("Queue is full, waiting until space is free");
       System.out.println();
+      System.out.println(Thread.currentThread().getName() + " was end");
+      System.out.println();
       wait();
     }
+
+    // If queue is empty, notify and add elements...
     if (queue.size() ==  0) {
       System.out.println("Queue is empty, notify");
       notifyAll();
     }
     queue.add(element);
-    System.out.println("Put: " + element );
+    System.out.println("Add: " + element );
     System.out.println();
   }
 
-  //  Delete element from blocking queue...
-  synchronized public Integer pop() throws InterruptedException {
+
+  // Take element from blocking queue...
+  synchronized public Integer take() throws InterruptedException {
     System.out.println("Trying to take");
+
+    // If queue is empty, wait until someone add elements...
     while (queue.size() == 0){
-      System.out.println("Queue is empty, waiting until something is put");
+      System.out.println("Queue is empty, waiting until something is add");
       wait();
     }
+
+    // If queue is full, notify and take element...
     if (queue.size() == limit) {
       System.out.println("Queue is full, notify");
       notifyAll();
@@ -49,29 +61,26 @@ public class  HybridQueue {
     return element;
   }
 
-  public void put(Integer element) {
-    queue.add(element);
-  }
-
-  public Integer take() {
-    if (queue.size() == 0)
-      return 0;
-    else
-      return queue.remove();
-  }
-
 }
 
-//  Example of working blocking queue...
+// Example of working blocking queue...
 class Main {
 
   public static void main(String[] args) throws InterruptedException {
 
+    // Create queue with 5 max elements...
     HybridQueue queue = new HybridQueue(5);
-    new Thread(new Producer(queue)).start();
-    Thread.currentThread().sleep(1000);
-    new Thread(new Consumer(queue)).start();
 
+    // Create thread with producer and make delay 1 sec...
+    Thread producer = new Thread(new Producer(queue));
+    producer.setName("Producer");
+    producer.start();
+    Thread.currentThread().sleep(1000);
+
+    // Create thread with consumer...
+    Thread consumer = new Thread(new Consumer(queue));
+    consumer.setName("Consumer");
+    consumer.start();
   }
 
   static class Producer implements Runnable {
@@ -88,7 +97,7 @@ class Main {
       System.out.println();
       while (true) {
         try {
-          queue.push(produce());
+          queue.add(produce());
           Thread.currentThread().sleep(200);
         } catch (InterruptedException e) {
           e.printStackTrace();
@@ -125,7 +134,7 @@ class Main {
     }
 
     private void consume() throws InterruptedException {
-      Integer i = queue.pop();
+      Integer i = queue.take();
       System.out.println("Consumer consumed: " + i);
       System.out.println();
     }
@@ -133,12 +142,13 @@ class Main {
 
 }
 
-//  Example of asynchronous working of queue... 
-class EggVoice extends Thread
+//  Example of asynchronous working of queue...
+class OtherThread extends Thread
 {
   private final HybridQueue queue;
+  private Random random = new Random();
 
-  public EggVoice(HybridQueue queue) {
+  public OtherThread(HybridQueue queue) {
     this.queue = queue;
   }
 
@@ -150,28 +160,47 @@ class EggVoice extends Thread
         sleep(1000);
       } catch(InterruptedException e){}
 
-      System.out.println("Egg!");
-      queue.put(i);
+      System.out.println("OtherThread!");
+      try {
+        queue.add(produce());
+      } catch (InterruptedException e) {
+        e.printStackTrace();
+      }
     }
+  }
+
+  private Integer produce() {
+    Integer i = random.nextInt(100);
+    System.out.println("Producer produce: " + i);
+    return i;
   }
 }
 
-class ChickenVoice
+// Example of asynchronous working queue...
+class MainThread
 {
-  static EggVoice mAnotherOpinion;
+  static OtherThread otherThread;
   private final HybridQueue queue;
 
-  public ChickenVoice(HybridQueue queue) {
+  public MainThread(HybridQueue queue) {
     this.queue = queue;
   }
 
+  public static void main(String[] args) throws InterruptedException {
 
-  public static void main(String[] args)
-  {
+    // Create queue with 5 max elements...
     HybridQueue queue = new HybridQueue(5);
-    mAnotherOpinion = new EggVoice(queue);
+
+    // Set name main thread...
+    Thread.currentThread().setName("MainThread");
+
+    // Create other thread and set him name...
+    otherThread = new OtherThread(queue);
     System.out.println("Discussion begins...");
-    mAnotherOpinion.start();
+    otherThread.start();
+    otherThread.setName("OtherThread");
+
+    Random random = new Random();
 
     for(int i = 0; i < 5; i++)
     {
@@ -179,25 +208,11 @@ class ChickenVoice
         Thread.sleep(1000);
       }catch(InterruptedException e){}
 
-      System.out.println("Chicken!");
-      queue.put(i);
+      System.out.println("MainThread!");
+      Integer element = random.nextInt(100);
+      System.out.println("Producer produce: " + element);
+      queue.add(element);
     }
 
-
-    if(mAnotherOpinion.isAlive()) // If opponent, who say "egg!" not finished...
-    {
-      try{
-        mAnotherOpinion.join(); //  Wait opponent...
-      }catch(InterruptedException e){}
-
-      System.out.println("First was egg!");
-    }
-    else  //  Else opponent is finished to saying...
-    {
-      System.out.println("First was chicken!");
-    }
-    System.out.println("Discussion complete!");
   }
 }
-
-
